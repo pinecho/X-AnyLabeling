@@ -1,3 +1,15 @@
+Install the app and environment, and run:
+ 
+conda activate gradio
+PYTHONPATH=/home/name/Projects/X-AnyLabeling python anylabeling/app.py
+
+NOTES:
+
+1. It is better not to open the image files when annotating them, to save the memory.
+
+2. EdgeSAM is good to test if the app runs as expected, but SAM-Huge delivers best results.
+
+
 <div align="center">
   <p>
     <a href="https://github.com/CVHub520/X-AnyLabeling/" target="_blank">
