@@ -2125,7 +2125,7 @@ class LabelingWidget(LabelDialog):
             self.actions.create_line_strip_mode.setEnabled(True)
         else:
             if create_mode == "polygon":
-                self.actions.create_mode.setEnabled(False)
+                self.actions.create_mode.setEnabled(True) #was False
                 self.actions.create_rectangle_mode.setEnabled(True)
                 self.actions.create_rotation_mode.setEnabled(True)
                 self.actions.create_cirle_mode.setEnabled(True)
@@ -4102,7 +4102,7 @@ class LabelingWidget(LabelDialog):
         label_dir_path = osp.dirname(self.filename)
         if self.output_dir:
             label_dir_path = self.output_dir
-        save_path = osp.realpath(osp.join(label_dir_path, "..", "mask"))
+        save_path = osp.realpath(osp.join(label_dir_path, ".", "exported_mask")) #".." -> "."
         os.makedirs(save_path, exist_ok=True)
         converter = LabelConverter(classes_file=self.classes_file)
         label_file_list = os.listdir(label_dir_path)
@@ -4126,7 +4126,7 @@ class LabelingWidget(LabelDialog):
         except Exception as e:
             QtWidgets.QMessageBox.warning(
                 self,
-                self.tr("Error"),
+                self.tr(f"Error in {src_file_name}"),
                 self.tr(f"{e}"),
                 QtWidgets.QMessageBox.Ok,
             )

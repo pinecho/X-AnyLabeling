@@ -101,7 +101,7 @@ class LabelConverter:
         if input_type == "grayscale":
             color_to_label = {v: k for k, v in mapping_color.items()}
             binaray_img = cv2.imread(mask, cv2.IMREAD_GRAYSCALE)
-            # use the different color_value to find the sub-region for each class
+            # use the different color_value to find the sub-region for each object instead of each class
             for color_value in np.unique(binaray_img):
                 class_name = color_to_label.get(color_value, "Unknown")
                 label_map = (binaray_img == color_value).astype(np.uint8)
@@ -119,7 +119,7 @@ class LabelConverter:
                     for point in approx:
                         x, y = point[0].tolist()
                         points.append([x, y])
-                    result_item = {"points": points, "label": class_name}
+                    result_item = {"points": points, "label": class_name, "group_id":color_value}
                     results.append(result_item)
         elif input_type == "rgb":
             color_to_label = {
@@ -456,7 +456,7 @@ class LabelConverter:
                 "label": result["label"],
                 "text": "",
                 "points": result["points"],
-                "group_id": None,
+                "group_id": result["group_id"],
                 "shape_type": "polygon",
                 "flags": {},
             }
@@ -760,9 +760,12 @@ class LabelConverter:
         image_shape = (image_height, image_width)
 
         polygons = []
+        groupid = set()
         for shape in data["shapes"]:
+            assert shape["group_id"] is not None, "group_id should not be None, check the pre-annotated json"
             shape_type = shape["shape_type"]
             if shape_type != "polygon":
+                raise NotImplementedError ("Only polygon is accepted currently")
                 continue
             points = shape["points"]
             polygon = []
@@ -773,51 +776,56 @@ class LabelConverter:
                 {
                     "label": shape["label"],
                     "polygon": polygon,
+                    "group_id": shape["group_id"]
                 }
             )
+            groupid.add(shape["group_id"])
 
         output_format = mapping_table["type"]
         if output_format not in ["grayscale", "rgb"]:
             raise ValueError("Invalid output format specified")
         mapping_color = mapping_table["colors"]
         if output_format == "grayscale" and polygons:
-            # Initialize binary_mask
-            binary_mask = np.zeros(image_shape, dtype=np.uint8)
-            for item in polygons:
-                label, polygon = item["label"], item["polygon"]
-                mask = np.zeros(image_shape, dtype=np.uint8)
-                cv2.fillPoly(mask, [np.array(polygon, dtype=np.int32)], 1)
-                if label in mapping_color:
-                    mask_mapped = mask * mapping_color[label]
-                else:
-                    mask_mapped = mask
-                binary_mask += mask_mapped
-            cv2.imencode(".png", binary_mask)[1].tofile(output_file)
+            for gid in groupid:
+                # Initialize binary_mask
+                binary_mask = np.zeros(image_shape, dtype=np.uint8)
+                for item in polygons:
+                    label, polygon = item["label"], item["polygon"]
+                    crt_gid = item["group_id"]
+                    mask = np.zeros(image_shape, dtype=np.uint8)
+                    if crt_gid == gid:
+                        cv2.fillPoly(mask, [np.array(polygon, dtype=np.int32)], 1)
+                        if label in mapping_color:
+                            mask_mapped = mask * mapping_color[label]
+                        else:
+                            mask_mapped = mask
+                        # cv2.imencode(".png", binary_mask)[1].tofile(output_file.replace(".png",f"_{i}.png"))
+                        binary_mask += mask_mapped
+                cv2.imencode(".png", binary_mask)[1].tofile(output_file.replace(".png",f"_{gid}.png"))
+                #cv2.imencode(".png", binary_mask)[1].tofile(output_file)
         elif output_format == "rgb" and polygons:
-            # Initialize rgb_mask
-            color_mask = np.zeros(
-                (image_height, image_width, 3), dtype=np.uint8
-            )
-            for item in polygons:
-                label, polygon = item["label"], item["polygon"]
-                # Create a mask for each polygon
-                mask = np.zeros(image_shape[:2], dtype=np.uint8)
-                cv2.fillPoly(mask, [np.array(polygon, dtype=np.int32)], 1)
-                # Initialize mask_mapped with a default value
-                mask_mapped = mask
-                # Map the mask values using the provided mapping table
-                if label in mapping_color:
-                    color = mapping_color[label]
-                    mask_mapped = np.zeros_like(color_mask)
-                    cv2.fillPoly(
-                        mask_mapped, [np.array(polygon, dtype=np.int32)], color
-                    )
-                    color_mask = cv2.addWeighted(
-                        color_mask, 1, mask_mapped, 1, 0
-                    )
-            cv2.imencode(".png", cv2.cvtColor(color_mask, cv2.COLOR_BGR2RGB))[
-                1
-            ].tofile(output_file)
+            for gid in groupid:
+                # Initialize rgb_mask
+                color_mask = np.zeros((image_height, image_width, 3), dtype=np.uint8)
+                for item in polygons:
+                    label, polygon = item["label"], item["polygon"]
+                    crt_gid = item["group_id"]
+                    if crt_gid == gid: 
+                        # Create a mask for each polygon
+                        mask = np.zeros(image_shape[:2], dtype=np.uint8)
+                        cv2.fillPoly(mask, [np.array(polygon, dtype=np.int32)], 1)
+                        # Initialize mask_mapped with a default value
+                        mask_mapped = mask
+                        # Map the mask values using the provided mapping table
+                        if label in mapping_color:
+                            color = mapping_color[label]
+                            mask_mapped = np.zeros_like(color_mask)
+                            cv2.fillPoly(mask_mapped, [np.array(polygon, dtype=np.int32)], color)
+                            # cv2.imencode(f"{i}.png", cv2.cvtColor(mask_mapped, cv2.COLOR_BGR2RGB))[1].tofile(output_file.replace(".png",f"_{i}.png"))
+                            color_mask = cv2.addWeighted(color_mask, 1, mask_mapped, 1, 0)
+                cv2.imencode(".png", cv2.cvtColor(color_mask, cv2.COLOR_BGR2RGB))[1].tofile(output_file.replace(".png",f"_{gid}.png"))
+                #cv2.imencode(".png", cv2.cvtColor(color_mask, cv2.COLOR_BGR2RGB))[1].tofile(output_file)
+                #output_file = xxx.png
 
     def custom_to_mot(self, input_path, output_file):
         mot_data = []
