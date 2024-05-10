@@ -19,6 +19,7 @@
         "Bus": 40,
         "Train": 50,
         "Motorcycle": 80,
-        "Bicycle": 90
+        "Bicycle": 90,
+        "apple": 95
     }
 }

@@ -1,6 +1,9 @@
 {
     "type": "rgb",
     "colors": {
+        "apple": [255, 255, 255],
+    	"appleold": [64, 64, 128],
+    	"person": [128, 64, 200],
         "Road": [128, 64, 128],
         "Sidewalk": [244, 35, 232],
         "Building": [70, 70, 70],
